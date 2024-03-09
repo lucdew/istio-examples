@@ -1,0 +1,141 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: greeter
+    istio-injection: enabled
+  name: greeter
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greeter-client
+  namespace: greeter
+  labels:
+    app: greeter-client
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: greeter-client
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: greeter-client
+        version: v1
+    spec:
+      containers:
+        - name: greeter-client
+          image: k3d-registry.localhost:5000/greeter_client:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--addr", "www.greeter.com:50051"]
+          ports:
+            - containerPort: 50051
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: www.greeter.com
+  namespace: greeter
+spec:
+  hosts:
+    - www.greeter.com
+  ports:
+    - number: 50051
+      name: http-50051
+      protocol: GRPC
+    #    - number: 50051
+    #      name: http
+    #      protocol: GRPC
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: istio-egressgateway
+  namespace: greeter
+spec:
+  selector:
+    istio: egressgateway
+  servers:
+    - port:
+        number: 50051
+        name: https-port-for-tls-origination
+        protocol: HTTPS
+      hosts:
+        - www.greeter.com
+      tls:
+        mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: egressgateway-for-greeter
+  namespace: greeter
+spec:
+  host: istio-egressgateway.istio-system.svc.cluster.local
+  subsets:
+    - name: greeter
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+        portLevelSettings:
+          - port:
+              number: 50051
+            tls:
+              mode: ISTIO_MUTUAL
+              sni: www.greeter.com
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: direct-greeter-through-egress-gateway
+  namespace: greeter
+spec:
+  hosts:
+    - www.greeter.com
+  gateways:
+    - istio-egressgateway
+    - mesh
+  http:
+    - match:
+        - gateways:
+            - mesh
+          port: 50051
+      route:
+        - destination:
+            host: istio-egressgateway.istio-system.svc.cluster.local
+            subset: greeter
+            port:
+              number: 50051
+          weight: 100
+    - match:
+        - gateways:
+            - istio-egressgateway
+          port: 50051
+      route:
+        - destination:
+            host: www.greeter.com
+            port:
+              number: 50051
+          weight: 100
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: originate-tls-for-greeter
+  namespace: greeter
+spec:
+  host: www.greeter.com
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    portLevelSettings:
+      - port:
+          number: 50051
+        tls:
+          mode: SIMPLE # initiates HTTPS for connections to www.greeter.command: command
+
