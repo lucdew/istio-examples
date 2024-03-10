@@ -73,7 +73,7 @@ A GRPC client inside the cluster connects to it in clear, istio side car contain
 ---
 title: greeter GRPC
 ---
-flowchart TD;
+flowchart LR;
     gc["Greeter GRPC client"]
     gs["Greeter GRPC server (server TLS port 50051)"]
     isc["istio side car container"]
@@ -89,7 +89,7 @@ flowchart TD;
 ```
 cd greeter-grpc/greeter_client
 docker build -t localhost:5000/greeter_client:latest .
-docker push
+docker push localhost:5000/greeter_client:latest
 ```
 
 - Build and start the server
