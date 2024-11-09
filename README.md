@@ -23,7 +23,7 @@ k3d registry create registry.localhost --port 5000
 - Create a cluster and use the registry:
 
 ```bash
-k3d cluster create mycluster --registry-use k3d-registry.localhost:5000
+k3d cluster create mycluster --registry-use k3d-registry.localhost:5000 --image rancher/k3s:v1.31.2-k3s1
 ```
 
 - Install istio with istioctl [istioctl](https://istio.io/latest/docs/setup/install/istioctl).
